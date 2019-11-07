@@ -28,3 +28,6 @@ proj/
 ```
 
 Please see each subfolder for a README file.
+
+
+P2 vs P3 given A3+R3
