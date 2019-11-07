@@ -31,3 +31,7 @@ Please see each subfolder for a README file.
 
 
 P2 vs P3 given A3+R3
+
+1. Alternating Least Aquares: A3--Alternating Least Squares to minimize object function 3. 
+2. Regularization Terms: R3--temporal dynamics 
+3. Postprocessing: P2--Postprocessing SVD with KNN, P3--Postprocessing SVD with kernel ridge regression. 
