@@ -1,0 +1,594 @@
+---
+title: "Recommender Systems"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+```{r, warning=F, message=F}
+# install.packages('recommenderlab')
+library(recommenderlab)
+```
+
+
+### Read Data
+Use a dataset of jokes that comes with recommenderlab package. The data set contains a sample of 5000 users from the anonymous ratings data from the Jester Online Joke Recommender System collected between April 1999 and May 2003.
+```{r, warning=F, message=F}
+data(Jester5k)
+```
+
+Here is one of the jokes. 
+```{r, warning=F, message=F}
+JesterJokes[[48]]
+```
+
+Data is stored as a realRatingMatrix
+```{r, warning=F, message=F}
+Jester5k
+```
+
+User-item matrices are often sparse. Some users rate more than others and some items get rated more than others but few or no items are rated by all and few or no users rate everything. Thus, the user-item matrix contains a number of missing values. Jester5k is a sparse matrix with only 72% elements rated.
+```{r, warning=F, message=F}
+nratings(Jester5k)/(ncol(Jester5k)*nrow(Jester5k))
+```
+
+Using a realRatingMatrix makes a number of recommenderlab functions accessible. 
+```{r, warning=F, message=F}
+methods(class = 'realRatingMatrix')
+```
+
+and also a number of recommender models
+```{r, warning=F, message=F}
+names(recommenderRegistry$get_entries(dataType='realRatingMatrix'))
+```
+
+
+
+
+### Get Familiar with the Data and Structure
+```{r, warning=F,message=F}
+Jester5k
+```
+
+Dimensions of this realRatingMatrix
+```{r, warning=F, message=F}
+dim(Jester5k)
+```
+
+structure of the object
+```{r, warning=F, message=F}
+str(Jester5k)
+```
+
+
+Implementation of image by recommenderlab generates a heatmap. 
+```{r, warning=F, message=F}
+image(Jester5k[1:5,1:5])
+```
+
+To view the raw data, we transform it to a matrix form. You will note that a realRatingMatrix places users along rows and items along columns.  
+```{r, warning=F, message=F}
+as(Jester5k,'matrix')[1:5, 1:5]
+```
+
+Another alternative for viewing raw data is to use the getRatingMatrix from recommenderlab
+```{r, warning=F, message=F}
+getRatingMatrix(Jester5k)[1:5,1:5]
+```
+
+
+Let us extract rating of Jokes 56 to 60 by u7676. Once data is converted to a matrix format, traditional methods for subsetting a matrix can be employed. 
+```{r, warning=F, message=F}
+as(Jester5k,'matrix')['u7676',c('j56','j57','j58','j59','j60')]
+```
+
+
+From the foregoing lines of code, it must be obvious that we can extract data by applying recommenderlab functions to a realRatingMatrix or convert the latter to matrix and then apply traditional functions. Let us answer the following questions using each method. 
+
+Q: How many jokes did u7676 rate?     
+
+A: Using recommenderlab functions
+```{r, warning=F, message=F}
+nratings(Jester5k['u7676',])
+```
+
+A: Using traditional ways  
+```{r, warning=F, message=F}
+sum(!is.na(as(Jester5k,'matrix')['u7676',]))
+```
+
+Q: What was the mean rating of jokes by u7676?  
+
+A: Using recommenderlab functions
+```{r, warning=F, message=F}
+mean(getRatings(Jester5k['u7676']))
+```
+
+A: Using traditional ways  
+```{r, warning=F, message=F}
+mean(as(Jester5k,'matrix')['u7676',],na.rm=T)
+```
+
+You will note that the realRatingMatrix is not a tidy format. Here is what the data would look like in a tidy format. Shown below is the head of a tidy dataset.
+```{r, warning=F, message=F}
+library(tidyr); library(tidyr); library(tibble)
+data.frame(as(Jester5k,'matrix'))%>%
+  rownames_to_column(var = 'user')%>%
+  gather(key = 'joke',value = rating,2:101)%>%
+  head()
+```
+
+
+### Split Data  
+Split the dataset, retaining 80% in the train sample
+```{r, warning=F, message=F}
+set.seed(1706)
+split = sample(x = nrow(Jester5k),size = 0.8*nrow(Jester5k))
+train = Jester5k[split,]
+test = Jester5k[-split,]
+```
+
+### Explore Train data  
+Let us examine the number of jokes rated by users. What can you say about the number of jokes rated by each user and the number of jokes rated by most users?
+```{r, warning=F, message=F}
+summary(rowCounts(train))
+
+```
+
+```{r, warning=F, message=F}
+library(ggplot2)
+ggplot(data=data.frame(no_of_jokes_rated = rowCounts(train)),aes(x=no_of_jokes_rated))+
+  geom_histogram(bins=50,fill='seagreen3')+ylab('Number of raters')+xlab('Number of Jokes rated')+
+  scale_x_continuous(breaks = seq(0,100,20),limits=c(0,110))+
+  scale_y_continuous(breaks=seq(0,1200,200),limits=c(0,1200))
+```
+
+Now, let us examine the number of ratings jokes received. What can you say about the number of ratings each jokes received? Did all jokes get rated the same number of times? 
+```{r, warning=F, message=F}
+summary(colCounts(train))
+```
+
+```{r, warning=F, message=F}
+library(tidyr);library(tibble); library(ggthemes)
+data.frame(no_of_ratings=colCounts(train))%>%
+  rownames_to_column()%>%
+  ggplot(aes(x=as.numeric(gsub(rowname,pattern = '[a-z]',replacement = '')), y=no_of_ratings))+
+  geom_col(fill='seagreen3')+xlab('Joke Id')+ylab('Number of ratings')+coord_flip()+ theme_bw()
+```
+
+Let us examine the average rating of the first six Jokes
+```{r, warning=F, message=F}
+head(colMeans(train))
+```
+
+Let us examine the distribution of average ratings of the 100 Jokes. Are some jokes rated better than others? Are ratings of jokes skewed to the high end of the scale?
+```{r, warning=F, message=F}
+library(ggplot2)
+ggplot(data=data.frame(joke_ratings = colMeans(train)),aes(x=joke_ratings))+
+  geom_histogram(fill='seagreen3')
+```
+
+```{r, warning=F, message=F}
+ggplot(data=data.frame(joke_ratings = colMeans(train)),aes(x=joke_ratings))+
+  geom_density(color='seagreen3', size=1.2)
+```
+
+Let us examine the average rating of the first six users
+```{r, warning=F, message=F}
+head(rowMeans(train))
+```
+
+Let us examine the distribution of jokes ratings by 4000 users in the train sample. Do users consistently rate jokes positively or negatively?   
+```{r, warning=F, message=F}
+library(ggplot2)
+ggplot(data=data.frame(joke_ratings = rowMeans(train)),aes(x=joke_ratings))+
+  geom_histogram(fill='seagreen3')
+```
+
+
+### Prepare Data   
+
+#### Normalization (centering)  
+People tend to differ in their ratings styles. For instance, some will rate few items (e.g., jokes) highly while others will rate most items highly. To control for individual differences, it is common to normalize the data by either centering (center) it or standardizing it (Z-score).   
+
+Let us examine the effect of centering on the ratings of u7676. Data before centering. 
+```{r, warning=F, message=F}
+getRatings(train['u7676'])
+```
+
+```{r, warning=F, message=F}
+summary(rowMeans(train))
+```
+
+Data after centering. 
+```{r, warning=F, message=F}
+getRatings(normalize(train, method='center')['u7676',])
+```
+
+```{r, warning=F, message=F}
+summary(getRatings(normalize(train, method='center')['u7676',]))
+```
+
+Summary of ratings for all users after centering.
+```{r, warning=F, message=F}
+summary(rowMeans(normalize(train,method='center')))
+```
+
+```{r, warning=F, message=F}
+ggplot(data=data.frame(joke_ratings = rowMeans(normalize(train))),aes(x=joke_ratings))+
+  geom_histogram(fill='seagreen3')
+```
+
+
+
+Now, let us examine the effect of centering on ratings of j50. Rating of j50 for first 25 users before centering.   
+```{r, warning=F, message=F}
+getRatings(train[1:25,'j50'])
+```
+
+Rating of j50 for first 25 users before centering.  
+```{r, warning=F, message=F}
+getRatings(normalize(train)[1:25,'j50'])
+```
+
+From the above, you may have noted that we generally only normalize user data not item data. 
+```{r, warning=F, message=F}
+summary(getRatings(normalize(train)[,'j50']))
+```
+
+
+Finally, one could go one step ahead of centering by standardizing the data (i.e., center and express in standard deviation units). Data before standardizing 
+```{r, warning=F, message=F}
+getRatings(train['u7676'])
+```
+
+```{r, warning=F, message=F}
+summary(rowMeans(train))
+```
+
+Data after standardizing. 
+```{r, warning=F, message=F}
+getRatings(normalize(train, method='Z-score')['u7676',])
+```
+
+```{r, warning=F, message=F}
+summary(getRatings(normalize(train, method='Z-score')['u7676',]))
+```
+
+
+#### Similarity  
+Let us examine cosine similarity among the first five users. Library recommenderlab comes with a function, similarity() that can be used to compute euclidean distance, cosine similarity, and pearson correlation. The three methods vary in the extent to which they standardize similarity.
+
+```{r, warning=F, message=F}
+similarity(normalize(train)[1:5],method = 'euclidean')
+```
+
+```{r, warning=F, message=F}
+similarity(normalize(train)[1:5],method = 'cosine')
+```
+
+```{r, warning=F, message=F}
+similarity(normalize(train)[1:5],method = 'pearson')
+```
+
+recommenderlab functions perform normalizing and compute similarity measures within the Recommender function, so in practice there is no need to perform these functions earlier. 
+
+
+### Construct Recommendations  
+
+
+
+
+### Non-Personalized Recommendations: Popular
+One of the oldest approaches to recommendations involves recommmending the most popular item. Although less widely used today, we still see this in the form of Top 50 Music Hits, Billboard Top Hits, and New York Times Bestsellers. The underlying assumption is that if most people like a movie, a book or a song, you will like it too. 
+
+Let us examine the POPULAR method that implements this technique
+```{r, warning=F, message=F}
+recommenderRegistry$get_entries(dataType='realRatingMatrix')$POPULAR_realRatingMatrix
+```
+
+We implement the POPULAR method using the Recommend function. We pass it a parameter to normalize train data using the center method (although, center is the default)
+```{r, warning=F, message=F}
+recom_popular = Recommender(train,method='POPULAR',parameter=list(normalize='center'))
+```
+
+#### Top n recommendations
+Use the Recommender object to generate Top 5 predictions for the test sample. Note, topNList is the default type.  
+```{r, warning=F, message=F}
+pred_popular_topN = predict(recom_popular,newdata=test,type='topNList',n=5)
+```
+
+Let us see the top 5 joke recommendations for u1840
+```{r, warning=F, message=F}
+getList(pred_popular_topN)['u1840']
+```
+
+Top 5 joke recommendations for u2841
+```{r, warning=F, message=F}
+getList(pred_popular_topN)['u2841']
+```
+
+Top 5 joke recommendations for the first ten users in the test sample
+```{r, warning=F, message=F}
+getList(pred_popular_topN)[1:20]
+```
+
+
+Let us understand the process by examining the ratings of all jokes. Sort all jokes by rating. 
+```{r, warning=F, message=F}
+sort(colMeans(normalize(test,method='center')),decreasing = T)
+```
+
+Now, let us examine jokes not rated by u2841
+```{r, warning=F, message=F}
+as(test,'matrix')['u2841',is.na(as(test,'matrix')['u2841',])]
+```
+
+From the above two bits of information, it should be possible to recommend jokes to u2841
+
+Or, of course, we can examine the results of running the POPULAR method of Recommender()
+```{r, warning=F, message=F}
+getList(pred_popular_topN)['u2841']
+```
+
+#### Ratings
+Now, instead of generating the Top n recommendations for each user, we can also generate ratings for each joke. To do this, we use the type, 'ratings' instead of 'topNList'
+```{r, warning=F, message=F}
+pred_popular = predict(recom_popular,newdata=test,type='ratings')
+```
+
+Jokes rated by u1840
+```{r, warning=F, message=F}
+as(test,'matrix')['u1840',]
+```
+
+Predicted ratings for jokes not rated by u1840
+```{r, warning=F, message=F}
+as(pred_popular,'matrix')['u1840',]
+```
+
+Ratings for jokes 51-60 by users 51-60 in the test
+```{r, warning=F, message=F}
+as(test,'matrix')[51:60,51:60]
+```
+
+Predicted Ratings for jokes 51-60 by users 51-60 in the test
+```{r, warning=F, message=F}
+as(pred_popular,'matrix')[51:60,51:60]
+```
+
+
+### User-based collaborative filtering
+Examine parameters for UBCF
+```{r, warning=F, message=F}
+recommenderRegistry$get_entries(data='realRatingMatrix')$UBCF_realRatingMatrix
+```
+
+```{r, warning=F, message=F}
+recom_ubcf = Recommender(train, method='UBCF', parameter=list(method='cosine',nn=25, normalize='center'))
+```
+
+#### Top n recommendations  
+```{r, warning=F, message=F}
+pred_ubcf_topN = predict(recom_ubcf,newdata=test,method='topNList',n=5)
+```
+
+
+```{r, warning=F, message=F}
+getList(pred_ubcf_topN)[1:5]
+```
+
+```{r, warning=F, message=F}
+getList(pred_ubcf_topN)['u1840']
+```
+
+
+```{r, warning=F, message=F}
+slotNames(pred_ubcf_topN)
+pred_ubcf_topN@items['u1840']
+```
+
+
+#### Ratings
+
+```{r, warning=F, message=F}
+pred_ubcf = predict(recom_ubcf,newdata=test,type='ratings')
+```
+
+Jokes rated
+```{r, warning=F, message=F}
+as(test,'matrix')['u1840',]
+```
+
+Recommendations for Jokes not rated
+```{r, warning=F, message=F}
+as(pred_ubcf,'matrix')['u1840',] 
+```
+
+Ratings for jokes 51-60 by users 51-60 in the test
+```{r, warning=F, message=F}
+as(test,'matrix')[51:60,51:60]
+```
+
+Predicted Ratings for jokes 51-60 by users 51-60 in the test
+```{r, warning=F, message=F}
+as(pred_ubcf,'matrix')[51:60,51:60]
+```
+
+
+
+
+### Item-based collaborative filtering
+```{r, warning=F, message=F}
+recommenderRegistry$get_entries(data='realRatingMatrix')$IBCF_realRatingMatrix # see parameters for IBCF
+```
+
+```{r, warning=F, message=F}
+recom_ibcf = Recommender(train, method='IBCF', parameter=list(k=30, method='cosine',normalize='center'))
+recom_ibcf
+```
+
+#### Top n recommendations
+```{r, warning=F, message=F}
+pred_ibcf_topN = predict(recom_ibcf,newdata=test,method='topNList',n=5)
+```
+
+```{r, warning=F, message=F}
+getList(pred_ibcf_topN)[1:5]
+```
+
+```{r, warning=F, message=F}
+getList(pred_ibcf_topN)['u1840']
+```
+
+
+
+#### Ratings
+```{r, warning=F, message=F}
+pred_ibcf = predict(recom_ibcf,newdata=test,type='ratings')
+```
+
+Jokes rated
+```{r, warning=F, message=F}
+as(test,'matrix')['u1840',]
+```
+
+Recommendations for Jokes not rated
+```{r, warning=F, message=F}
+as(pred_ibcf,'matrix')['u1840',] 
+```
+
+```{r, warning=F, message=F}
+as(test,'matrix')[51:60,51:60]
+```
+
+```{r, warning=F, message=F}
+as(pred_ubcf,'matrix')[51:60,51:60]
+```
+
+
+### Evaluation Scheme
+
+#### Split: Train - Test
+Recommenderlab package has some handy built-in functions to evaluate different recommender models. Here, we are going to create an evaluation scheme from Jester5k, not the train dataset. evaluationScheme() handles splits, k-fold cross validation and bootstrapping under the hood.
+
+Let us begin with a 80:20 split. We will give the recommender algorithm 30 items from the test set and hold out the other items for computing the error. The number of items ('given') must be less than the minimum items rated by any user. For this dataset, the least number of jokes rated by any user is 36
+```{r, warning=F, message=F}
+min(rowCounts(Jester5k))
+```
+
+```{r, warning=F, message=F}
+es = evaluationScheme(Jester5k,method='split',train=0.8, given=30)
+```
+
+
+```{r, warning=F, message=F}
+getData(es,'train')
+```
+
+```{r, warning=F, message=F}
+getData(es,'known')
+```
+
+```{r, warning=F, message=F}
+getData(es,'unknown')
+```
+
+Total number of ratings = train + known + unknown
+```{r, warning=F, message=F}
+nratings(Jester5k) == nratings(getData(es,'train')) + nratings(getData(es,'known')) + nratings(getData(es,'unknown')) 
+```
+
+Number of items used to generate recommendations; value of 'given' 
+```{r, warning=F, message=F}
+rowCounts(getData(es,'known'))[1:20]
+```
+
+Remaining items being held out for computing error.
+```{r, warning=F, message=F}
+rowCounts(getData(es,'unknown'))[1:20]  
+```
+
+Build recommender
+```{r, warning=F, message=F}
+recom_ubcf = Recommender(data = getData(es,'train'),
+                         method='UBCF',
+                         parameter = list(method='cosine',nn=25,normalize='center'))
+```
+
+Generate Predictions
+```{r, warning=F, message=F}
+pred_ubcf = predict(recom_ubcf,newdata=getData(es,'known'), type='ratings')
+```
+
+Evaluate Predictions
+```{r, warning=F, message=F}
+calcPredictionAccuracy(pred_ubcf,data = getData(es,'unknown'))
+```
+
+
+
+
+
+
+Next let us calculate prediction accuracy for an IBCF
+```{r}
+recommenderRegistry$get_entries(data='realRatingMatrix')$IBCF_realRatingMatrix
+```
+
+```{r, warning=F, message=F}
+recom_ibcf = Recommender(data = getData(es,'train'),
+                         method='IBCF',
+                         parameter = list(method='cosine',k=30,normalize='center'))
+pred_ibcf = predict(recom_ibcf,newdata=getData(es,'known'), type='ratings')
+calcPredictionAccuracy(pred_ibcf,data = getData(es,'unknown'))
+```
+
+
+
+#### k-fold cross-validation
+
+Next, let us use k-fold cross-validation, first, to evaluate just UBCF
+```{r, warning=F, message=F}
+set.seed(1031)
+es = evaluationScheme(Jester5k,method='cross-validation',k=10,given=30)
+ev = evaluate(x = es,method='UBCF',parameter=list(method='cosine',nn=25), type='ratings')
+avg(ev)
+```
+
+Use k-fold cross-validation to evaluate a set of recommenders
+```{r, warning=F, message=F}
+recommender_algorithms = list(random = list(name='RANDOM'),
+                              popular = list(name='POPULAR'),
+                              ubcf = list(name='UBCF'),
+                              ubcf_50 = list(name='UBCF',parameters=list(nn=50)),
+                              ubcf_100 = list(name='UBCF',parameters=list(nn=100)),
+                              ibcf = list(name='IBCF'),
+                              ibcf_10 = list(name='IBCF', parameters=list(k=10)))
+ev = evaluate(x = es,method=recommender_algorithms, type='ratings')
+results = matrix(unlist(avg(ev)),ncol=3)
+colnames(results) = c('RMSE','MSE','MAE')
+rownames(results) = c('random','popular','ubcf','ubcf_50','ubcf_100','ibcf','ibcf_10')
+results
+```
+
+```{r, warning=F, message=F}
+plot(ev)
+```
+
+
+
+
+
+
+-------------------------------------------------------------------------------------------------------------
+
+
+
+
+References:  
+Gorakala, S. K., & Usuelli, M. (2015). Building a Recommendation System with R. Packt Publishing. ISBN-13: 9781783554492  
+Michael Hahsler (2018). recommenderlab: Lab for Developing and Testing Recommender Algorithms. R package version 0.2-3. http://lyle.smu.edu/IDA/recommenderlab/
+
+
