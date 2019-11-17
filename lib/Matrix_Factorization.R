@@ -306,6 +306,8 @@ als.t <- function(f = 10,  lambda = 0.3,max.iter = 10,data, train, test){
     bi <- result
     RMSEOut$Train.bi.Update[l+1] <- RMSE2(train,predictRating(train,mu,q,p,bi,bibin,bu,alphau,alphap,dateIntervals,tu))
     RMSEOut$Test.bi.Update[l+1] <- RMSE2(test,predictRating(test,mu,q,p,bi,bibin,bu,alphau,alphap,dateIntervals,tu))
+    cat("RMSE after updating bi, training:", RMSEOut$Train.bi.Update[l+1], "\t testing:",RMSEOut$Test.bi.Update[l+1], "\n")
+    
     
     
     #update bibin. Runtime on 8 core parallel is 3 minutes
@@ -336,7 +338,7 @@ als.t <- function(f = 10,  lambda = 0.3,max.iter = 10,data, train, test){
     bibin <- result
     RMSEOut$Train.bibin.Update[l+1] <- RMSE2(train,predictRating(train,mu,q,p,bi,bibin,bu,alphau,alphap,dateIntervals,tu))
     RMSEOut$Test.bibin.Update[l+1] <- RMSE2(test,predictRating(test,mu,q,p,bi,bibin,bu,alphau,alphap,dateIntervals,tu))
-    
+    cat("RMSE after updating bibin, training:", RMSEOut$Train.bibin.Update[l+1], "\t testing:",RMSEOut$Test.bibin.Update[l+1], "\n")
     
     #update bu. Runtime on 8 core parallel is 2.39 seconds
     result <- foreach (user = 1:length(bu),.combine = c,.packages = c('dplyr','tidyr','foreach')) %dopar%{ 
@@ -360,7 +362,7 @@ als.t <- function(f = 10,  lambda = 0.3,max.iter = 10,data, train, test){
     bu <- result
     RMSEOut$Train.bu.Update[l+1] <- RMSE2(train,predictRating(train,mu,q,p,bi,bibin,bu,alphau,alphap,dateIntervals,tu))
     RMSEOut$Test.bu.Update[l+1] <- RMSE2(test,predictRating(test,mu,q,p,bi,bibin,bu,alphau,alphap,dateIntervals,tu))
-    
+    cat("RMSE after updating bu, training:", RMSEOut$Train.bu.Update[l+1], "\t testing:",RMSEOut$Test.bu.Update[l+1], "\n")
     
     #update alphau. Runtime on 8 core parallel is 1.72 seconds
     result <- foreach (user = 1:length(alphau),.combine = c,.packages = c('dplyr','tidyr','foreach')) %dopar%{ 
@@ -387,13 +389,93 @@ als.t <- function(f = 10,  lambda = 0.3,max.iter = 10,data, train, test){
     alphau <- result
     RMSEOut$Train.alphau.Update[l+1] <- RMSE2(train,predictRating(train,mu,q,p,bi,bibin,bu,alphau,alphap,dateIntervals,tu))
     RMSEOut$Test.alphau.Update[l+1] <- RMSE2(test,predictRating(test,mu,q,p,bi,bibin,bu,alphau,alphap,dateIntervals,tu))
+    cat("RMSE after updating alphau, training:", RMSEOut$Train.alphau.Update[l+1], "\t testing:",RMSEOut$Test.alphau.Update[l+1], "\n")
     
     
+    #update p. Runtime on 8 core parallel is 1.13 seconds
+    result <- foreach (user = 1:ncol(p),.combine = cbind,.packages = c('dplyr','tidyr','foreach')) %dopar%{ 
+      i <- colnames(p)[user]
+      Ij <- train1 %>% filter(userId==i) %>% arrange(movieId) #all data related to this user
+      MI <- q[,as.character(Ij$movieId)]
+      
+      RVec <- Ij$rating 
+      bis <- bi[as.character(Ij$movieId)]
+      bibinInds <- match(as.character(Ij$movieId),colnames(bibin)) * nrow(bibin) - (nrow(bibin)-Ij$Interval_i)#retrive relevant bibin elements
+      bibins <- bibin[bibinInds]
+      bus <- bu[as.character(Ij$userId)]
+      alphauDevs <- alphau[as.character(Ij$userId)] * Ij$Dev
+      alphapDevs <- alphap[,as.character(Ij$userId)] %*% Ij$Dev 
+      
+      # V <- MI %*% RVec - MI %*% bis - MI %*% bibins - MI %*% bus - MI %*% alphauDevs - MI %*% t(MI) %*% alphapDevs 
+      V <- MI %*% (RVec - bis - bibins -  bus -  alphauDevs -t(MI) %*% alphapDevs) 
+      A <-  MI %*% t(MI) + lambda * nrow(Ij) * diag(f)
+      
+      solve(A,tol = 1e-30) %*% V
+      
+    }
+    colnames(result) <- colnames(p)
+    p <- result
+    RMSEOut$Train.P.Update[l+1] <- RMSE2(train,predictRating(train,mu,q,p,bi,bibin,bu,alphau,alphap,dateIntervals,tu))
+    RMSEOut$Test.P.Update[l+1] <- RMSE2(test,predictRating(test,mu,q,p,bi,bibin,bu,alphau,alphap,dateIntervals,tu))
+    cat("RMSE after updating p, training:", RMSEOut$Train.P.Update[l+1], "\t testing:",RMSEOut$Test.P.Update[l+1], "\n")
     
-    #to be implemented:
-    #update p
-    #update alphap
-    #update u
+    
+    # #update alphap. Runtime on 8 core parallel is 0.88 seconds
+    # result <- foreach (user = 1:ncol(alphap),.combine = cbind,.packages = c('dplyr','tidyr','foreach')) %dopar%{ 
+    #   i <- colnames(p)[user]
+    #   Ij <- train1 %>% filter(userId==i) %>% arrange(movieId) #all data related to this user
+    #   MI <- q[,as.character(Ij$movieId),drop = F]
+    #   
+    #   RVec <- Ij$rating 
+    #   bis <- bi[as.character(Ij$movieId)]
+    #   bibinInds <- match(as.character(Ij$movieId),colnames(bibin)) * nrow(bibin) - (nrow(bibin)-Ij$Interval_i)#retrive relevant bibin elements
+    #   bibins <- bibin[bibinInds]
+    #   bus <- bu[as.character(Ij$userId)]
+    #   alphauDevs <- alphau[as.character(Ij$userId)] * Ij$Dev
+    #   
+    #   
+    #   # V <- MI %*% (RVec * Ij$Dev) - MI %*% (bis*Ij$Dev) - MI %*% (bibins * Ij$Dev) - MI %*% (bus * Ij$Dev) - MI %*% (alphauDevs * Ij$Dev) - MI %*% (t(MI) %*% p[,i] * Ij$Dev)    
+    #   V <- MI %*% ((RVec  - bis -bibins  -bus  - alphauDevs - t(MI) %*% p[,i]) * Ij$Dev)
+    #   A <-   (MI %*% diag(Ij$Dev,nrow = nrow(Ij))) %*% t(MI %*% diag(Ij$Dev,nrow = nrow(Ij)))   + lambda * diag(f)
+    #   
+    #   solve(A,tol = 1e-30) %*% V
+    #   
+    # }
+    # colnames(result) <- colnames(alphap)
+    # alphap <- result
+    # RMSEOut$Train.alphap.Update[l+1] <- RMSE2(train,predictRating(train,mu,q,p,bi,bibin,bu,alphau,alphap,dateIntervals,tu))
+    # RMSEOut$Test.alphap.Update[l+1] <- RMSE2(test,predictRating(test,mu,q,p,bi,bibin,bu,alphau,alphap,dateIntervals,tu))
+    # cat("RMSE after updating alphap, training:", RMSEOut$Train.alphap.Update[l+1], "\t testing:",RMSEOut$Test.alphap.Update[l+1], "\n")
+    
+    # update q. Runtime on 8 core parallel is 30.5 seconds
+    result <- foreach (movie = 1:ncol(q),.combine = cbind,.packages = c('dplyr','tidyr','foreach')) %dopar%{
+      i <- colnames(q)[movie]
+      Ij <- train1 %>% filter(movieId==i) %>% arrange(userId) #all data related to this movie
+      MI <- p[,as.character(Ij$userId),drop = F]
+
+      RVec <- Ij$rating
+      bis <- bi[as.character(Ij$movieId)]
+      bibinInds <- match(as.character(Ij$movieId),colnames(bibin)) * nrow(bibin) - (nrow(bibin)-Ij$Interval_i)#retrive relevant bibin elements
+      bibins <- bibin[bibinInds]
+      bus <- bu[as.character(Ij$userId)]
+      alphauDevs <- alphau[as.character(Ij$userId)] * Ij$Dev
+      MIt <- MI + (alphap[,as.character(Ij$userId)] %*% diag(Ij$Dev,nrow = nrow(Ij)))
+
+
+
+      # V <- MI %*% RVec - MI %*% bis - MI %*% bibins - MI %*% bus - MI %*% alphauDevs - MI %*% t(MI) %*% alphapDevs
+      V <- MIt %*% (RVec - bis - bibins -  bus -  alphauDevs)
+      A <-  MIt %*% t(MIt) + lambda * nrow(Ij) * diag(f)
+
+      solve(A,tol = 1e-30) %*% V
+
+    }
+    colnames(result) <- colnames(q)
+    q <- result
+    RMSEOut$Train.Q.Update[l+1] <- RMSE2(train,predictRating(train,mu,q,p,bi,bibin,bu,alphau,alphap,dateIntervals,tu))
+    RMSEOut$Test.Q.Update[l+1] <- RMSE2(test,predictRating(test,mu,q,p,bi,bibin,bu,alphau,alphap,dateIntervals,tu))
+    cat("RMSE after updating q, training:", RMSEOut$Train.Q.Update[l+1], "\t testing:",RMSEOut$Test.Q.Update[l+1], "\n")
+
   }
   
   return(list(mu = mu,

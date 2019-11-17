@@ -35,25 +35,23 @@ cv.function <- function(dat_train, K, f, lambda){
 }
 
 #######################Wenyue Edit##############################
-cv.als.function <- function(dat_train, K, f, lambda, max.iter = 10){
+cv.als.t.function <- function(dat_train, K, f, lambda, max.iter = 10){
   n <- dim(dat_train)[1]
   n.fold <- round(n/K, 0)
   
   s <- sample(rep(1:K, c(rep(n.fold, K-1), n-(K-1)*n.fold)))  
-  train_rmse <- matrix(NA, ncol = max.iter,nrow = K)
-  test_rmse <- matrix(NA, ncol = max.iter, nrow = K)
+  RMSEList <- list()
   
   for (i in 1:K){
     train.data <- dat_train[s != i,]
     test.data <- dat_train[s == i,]
     
-    result <- als(f = f, lambda =lambda, max.iter = max.iter,data = dat_train, train = train.data, test = test.data)
+    result <- als.t(f = f, lambda =lambda, max.iter = max.iter,data = dat_train, train = train.data, test = test.data)
     
-    train_rmse[i,] <-  result$RMSE$Train.Q.Update[-1]
-    test_rmse[i,] <-   result$RMSE$Test.Q.Update[-1]
+    RMSEList[[i]] <- result$RMSE
     
   }		
-  return(list(mean_train_rmse = apply(train_rmse, 2, mean), mean_test_rmse = apply(test_rmse, 2, mean),
-              sd_train_rmse = apply(train_rmse, 2, sd), sd_test_rmse = apply(test_rmse, 2, sd)))
+  
+  RMSEList
 }
 #####################################################################
