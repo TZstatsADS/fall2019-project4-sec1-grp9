@@ -308,8 +308,6 @@ als.t <- function(f = 10,  lambda = 0.3,max.iter = 10,data, train, test){
     RMSEOut$Test.bi.Update[l+1] <- RMSE2(test,predictRating(test,mu,q,p,bi,bibin,bu,alphau,alphap,dateIntervals,tu))
     cat("RMSE after updating bi, training:", RMSEOut$Train.bi.Update[l+1], "\t testing:",RMSEOut$Test.bi.Update[l+1], "\n")
     
-    
-    
     #update bibin. Runtime on 8 core parallel is 3 minutes
     result <- foreach (movie = 1:ncol(bibin),.combine = cbind,.packages = c('dplyr','tidyr','foreach')) %dopar%{ 
       i <- colnames(bibin)[movie]
@@ -420,32 +418,31 @@ als.t <- function(f = 10,  lambda = 0.3,max.iter = 10,data, train, test){
     cat("RMSE after updating p, training:", RMSEOut$Train.P.Update[l+1], "\t testing:",RMSEOut$Test.P.Update[l+1], "\n")
     
     
-    # #update alphap. Runtime on 8 core parallel is 0.88 seconds
-    # result <- foreach (user = 1:ncol(alphap),.combine = cbind,.packages = c('dplyr','tidyr','foreach')) %dopar%{ 
-    #   i <- colnames(p)[user]
-    #   Ij <- train1 %>% filter(userId==i) %>% arrange(movieId) #all data related to this user
-    #   MI <- q[,as.character(Ij$movieId),drop = F]
-    #   
-    #   RVec <- Ij$rating 
-    #   bis <- bi[as.character(Ij$movieId)]
-    #   bibinInds <- match(as.character(Ij$movieId),colnames(bibin)) * nrow(bibin) - (nrow(bibin)-Ij$Interval_i)#retrive relevant bibin elements
-    #   bibins <- bibin[bibinInds]
-    #   bus <- bu[as.character(Ij$userId)]
-    #   alphauDevs <- alphau[as.character(Ij$userId)] * Ij$Dev
-    #   
-    #   
-    #   # V <- MI %*% (RVec * Ij$Dev) - MI %*% (bis*Ij$Dev) - MI %*% (bibins * Ij$Dev) - MI %*% (bus * Ij$Dev) - MI %*% (alphauDevs * Ij$Dev) - MI %*% (t(MI) %*% p[,i] * Ij$Dev)    
-    #   V <- MI %*% ((RVec  - bis -bibins  -bus  - alphauDevs - t(MI) %*% p[,i]) * Ij$Dev)
-    #   A <-   (MI %*% diag(Ij$Dev,nrow = nrow(Ij))) %*% t(MI %*% diag(Ij$Dev,nrow = nrow(Ij)))   + lambda * diag(f)
-    #   
-    #   solve(A,tol = 1e-30) %*% V
-    #   
-    # }
-    # colnames(result) <- colnames(alphap)
-    # alphap <- result
-    # RMSEOut$Train.alphap.Update[l+1] <- RMSE2(train,predictRating(train,mu,q,p,bi,bibin,bu,alphau,alphap,dateIntervals,tu))
-    # RMSEOut$Test.alphap.Update[l+1] <- RMSE2(test,predictRating(test,mu,q,p,bi,bibin,bu,alphau,alphap,dateIntervals,tu))
-    # cat("RMSE after updating alphap, training:", RMSEOut$Train.alphap.Update[l+1], "\t testing:",RMSEOut$Test.alphap.Update[l+1], "\n")
+    #update alphap. Runtime on 8 core parallel is 0.88 seconds
+    result <- foreach (user = 1:ncol(alphap),.combine = cbind,.packages = c('dplyr','tidyr','foreach')) %dopar%{ 
+      i <- colnames(alphap)[user]
+      Ij <- train1 %>% filter(userId==i) %>% arrange(movieId) #all data related to this user
+      MI <- q[,as.character(Ij$movieId),drop = F]
+      
+      RVec <- Ij$rating 
+      bis <- bi[as.character(Ij$movieId)]
+      bibinInds <- match(as.character(Ij$movieId),colnames(bibin)) * nrow(bibin) - (nrow(bibin)-Ij$Interval_i)#retrive relevant bibin elements
+      bibins <- bibin[bibinInds]
+      bus <- bu[as.character(Ij$userId)]
+      alphauDevs <- alphau[as.character(Ij$userId)] * Ij$Dev
+      
+      # V <- MI %*% (RVec * Ij$Dev) - MI %*% (bis*Ij$Dev) - MI %*% (bibins * Ij$Dev) - MI %*% (bus * Ij$Dev) - MI %*% (alphauDevs * Ij$Dev) - MI %*% (t(MI) %*% p[,i] * Ij$Dev)    
+      V <- MI %*% ((RVec  - bis -bibins  -bus  - alphauDevs - t(MI) %*% p[,i]) * Ij$Dev)
+      A <-   (MI %*% diag(Ij$Dev,nrow = nrow(Ij))) %*% t(MI %*% diag(Ij$Dev,nrow = nrow(Ij)))   + lambda * diag(f)
+      
+      solve(A,tol = 1e-30) %*% V
+      
+    }
+    colnames(result) <- colnames(alphap)
+    alphap <- result
+    RMSEOut$Train.alphap.Update[l+1] <- RMSE2(train,predictRating(train,mu,q,p,bi,bibin,bu,alphau,alphap,dateIntervals,tu))
+    RMSEOut$Test.alphap.Update[l+1] <- RMSE2(test,predictRating(test,mu,q,p,bi,bibin,bu,alphau,alphap,dateIntervals,tu))
+    cat("RMSE after updating alphap, training:", RMSEOut$Train.alphap.Update[l+1], "\t testing:",RMSEOut$Test.alphap.Update[l+1], "\n")
     
     # update q. Runtime on 8 core parallel is 30.5 seconds
     result <- foreach (movie = 1:ncol(q),.combine = cbind,.packages = c('dplyr','tidyr','foreach')) %dopar%{
