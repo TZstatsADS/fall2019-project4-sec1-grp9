@@ -1,0 +1,98 @@
+---
+title: "Project4"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r}
+f = 10
+lambda = 0.01
+max.iter = 3
+data = data
+train = data_train
+test = data_test
+```
+
+```{r}
+library("lubridate")
+data$Date <-as.Date(as.POSIXlt(data$timestamp,origin = "1970-01-01",tz = 'UTC'))
+train$Date <- as.Date(as.POSIXlt(train$timestamp,origin = "1970-01-01",tz = 'UTC'))
+test$Date <- as.Date(as.POSIXlt(test$timestamp,origin = "1970-01-01",tz = 'UTC'))
+
+dateIntervals <- as.Date(paste0(sort(unique(as.numeric(format(data$Date,'%Y')))),'-01-01')) #use years as Date Bins for b_i(t)
+train$Interval_i <- findInterval(train$Date,dateIntervals) 
+test$Interval_i <- findInterval(test$Date,dateIntervals)
+
+tu <- as.data.frame(data %>% group_by(userId) %>% summarise(MeanDate = round_date(mean(Date),'day'))) #mean date of rating for each user
+#here we precompute dev_u(t) for each entry. This is computed as (signed) (devation from the mean date of rating ^0.4). 0.4 is the paramter Beta taken from P5
+train$Dev <- as.numeric(sign(train$Date- tu$MeanDate[match(train$userId,tu$userId)]) *(as.numeric(abs((train$Date- tu$MeanDate[match(train$userId,tu$userId)])))^0.4))
+test$Dev <- as.numeric(sign(test$Date- tu$MeanDate[match(test$userId,tu$userId)]) *(as.numeric(abs((test$Date- tu$MeanDate[match(test$userId,tu$userId)])))^0.4))
+
+U <- length(unique(data$userId))
+I <- length(unique(data$movieId))
+```
+
+```{r}
+head(train)
+```
+
+```{r}
+  mu <- mean(train$rating)
+  
+  #b_i.Non time-based biase for each movie, initialized to be 0
+  bi <- rep(0,I); names(bi) <- levels(as.factor(data$movieId))
+  #bibin(t), time-based biase for each movie, initialized to be 0
+  bibin <- matrix(0,length(dateIntervals),I); colnames(bibin) <- levels(as.factor(data$movieId))
+  
+  #b_u. Non time-based biase for each user, initialized to be 0
+  bu <-  rep(0,U); names(bu) <- levels(as.factor(data$userId))
+  #alpha_u. The coefficient for dev_u(t), initialized to be 0
+  alphau <- rep(0,U); names(alphau) <- levels(as.factor(data$userId))
+  
+  
+  #p = user matrix; q = movie matrix
+  #assign random small value to matrix p and q
+  p <- matrix(runif(f*U, -1, 1), ncol = U) 
+  colnames(p) <- levels(as.factor(data$userId))
+  ##alpha parametr associated with p(t), initialized to be 0
+  alphap <- matrix(0,nrow = f, ncol = U) 
+  colnames(alphap) <- levels(as.factor(data$userId))
+  q <- matrix(runif(f*I, -1, 1), ncol = I)
+  colnames(q) <- levels(as.factor(data$movieId))
+```
+
+
+```{r}
+library(parallel)
+detectCores()
+```
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

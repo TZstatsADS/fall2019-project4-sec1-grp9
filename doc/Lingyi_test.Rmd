@@ -1,0 +1,392 @@
+---
+title: "Lingyi_test"
+author: "Lingyi"
+date: "11/15/2019"
+output: html_document
+---
+
+```{r}
+setwd('/home/lingyi/Desktop/repo/fall2019-project4-sec1-grp9/doc')
+data <- read.csv("../data/ml-latest-small/ratings.csv")
+```
+
+---
+title: "Project4"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+In this project, you are going to explore matrix factorization methods for recommender system. The goal is to match consumers with most appropriate products. Matrix factorization methods characterize both items and users by vectors of factors inferred from item rating patterns. High correspondence between item and user factors leads to a recommendation. Matrix factorization generally has 3 parts:
+
+- factorization algorithm
+
+- regularization
+
+- postpocessing
+
+It is highly recommended to read this [review paper](./paper/P1 Recommender-Systems.pdf).
+
+### Step 1 Load Data and Train-test Split
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+data <- read.csv("../data/ml-latest-small/ratings.csv")
+set.seed(0)
+test_idx <- sample(1:nrow(data), round(nrow(data)/5, 0))
+train_idx <- setdiff(1:nrow(data), test_idx)
+data_train <- data[train_idx,]
+data_test <- data[test_idx,]
+```
+
+###Step 2 Matrix Factorization
+#### Step 2.1 Algorithm and Regularization
+Here I perform stochastic gradien descent to do matrix factorization.
+Your algorithm should consider case that there are new users and movies adding to the dataset you used to train. In other words, the dimension your matrix R, q, p is dynamic.
+
+- For algorithms, the referenced paper are:
+
+A1. [Stochastic Gradient Descent](./paper/P1 Recommender-Systems.pdf) Section: Learning Algorithms-Stochastic Gradient Descent
+
+A2. [Gradient Descent with Probabilistic Assumptions](./paper/P3 probabilistic-matrix-factorization.pdf) Section 2
+
+A3. [Alternating Least Squares](./paper/P4 Large-scale Parallel Collaborative Filtering for the Netflix Prize.pdf) Section 3.1
+
+- For regularizations, the referenced paper are:
+
+R1. [Penalty of Magnitudes](./paper/P1 Recommender-Systems.pdf) Section: a Basic Matrix Factorization Model
+
+R2. [Bias and Intercepts](./paper/P1 Recommender-Systems.pdf) Section: Adding Biases
+
+R3. [Temporal Dynamics](./paper/P5 Collaborative Filtering with Temporal Dynamics.pdf) Section 4
+
+
+```{r}
+U <- length(unique(data$userId))
+I <- length(unique(data$movieId))
+source("../lib/Matrix_Factorization.R")
+```
+
+
+#### Step 2.2 Parameter Tuning
+Here you should tune parameters, such as the dimension of factor and the penalty parameter $\lambda$ by cross-validation.
+```{r}
+source("../lib/cross_validation.R")
+f_list <- seq(10, 20, 10)
+l_list <- seq(-2, -1, 1)
+f_l <- expand.grid(f_list, l_list)
+```
+
+```{r, eval=FALSE}
+result_summary <- array(NA, dim = c(nrow(f_l), 10, 4)) 
+run_time <- system.time(for(i in 1:nrow(f_l)){
+    par <- paste("f = ", f_l[i,1], ", lambda = ", 10^f_l[i,2])
+    cat(par, "\n")
+    current_result <- cv.function(data, K = 5, f = f_l[i,1], lambda = 10^f_l[i,2])
+    result_summary[,,i] <- matrix(unlist(current_result), ncol = 10, byrow = T) 
+    print(result_summary)
+  
+})
+save(result_summary, file = "../output/rmse.Rdata")
+```
+
+```{r}
+load("../output/rmse.Rdata")
+rmse <- data.frame(rbind(t(result_summary[1,,]), t(result_summary[2,,])), train_test = rep(c("Train", "Test"), each = 4), par = rep(paste("f = ", f_l[,1], ", lambda = ", 10^f_l[,2]), times = 2)) %>% gather("epoch", "RMSE", -train_test, -par)
+rmse$epoch <- as.numeric(gsub("X", "", rmse$epoch))
+rmse %>% ggplot(aes(x = epoch, y = RMSE, col = train_test)) + geom_point() + facet_grid(~par)
+```
+
+### Step 3 Postprocessing
+After matrix factorization, postporcessing will be performed to improve accuracy.
+The referenced papers are:
+
+P1:[Global bias correction](./paper/P4 Large-scale Parallel Collaborative Filtering for the Netflix Prize.pdf) Section 4.1
+
+P2:[Postprocessing SVD with KNN](./paper/P2 Improving regularized singular value decomposition for collaborative filtering .pdf) Section 3.5
+
+P3:[Postprocessing SVD with kernel ridge regression](./paper/P2 Improving regularized singular value decomposition for collaborative filtering .pdf) Section 3.6
+
+P4:[Linearly combination of predictors](./paper/P4 Large-scale Parallel Collaborative Filtering for the Netflix Prize.pdf) Section 4.1
+
+```{r, eval= FALSE}
+result <- gradesc(f = 10, lambda = 0.1,lrate = 0.01, max.iter = 100, stopping.deriv = 0.01,
+                   data = data, train = data_train, test = data_test)
+save(result, file = "../output/mat_fac.RData")
+```
+
+```{r}
+pred_rating[as.character(test_set[2]), as.character(test_set[1])]
+```
+
+```{r}
+load(file = "../output/mat_fac.RData")
+pred_rating <- t(result$q) %*% result$p
+#define a function to extract the corresponding predictedrating for the test set.
+extract_pred_rating <- function(test_set, pred){
+  pred_rating <- pred[as.character(test_set[2]), as.character(test_set[1])]
+  return(pred_rating)
+}
+#extract predicted rating
+pred_test_rating <- apply(data_test, 1, extract_pred_rating, pred_rating)
+#mean(P)
+pred_mean <- mean(pred_test_rating)
+#mean(test)
+mean_test_rating <- mean(data_test$rating)
+#mean(test) - mean(P)
+mean_diff <- mean_test_rating - pred_mean
+data_test$pred <- pred_test_rating
+data_test$pred_adj <- pred_test_rating + mean_diff
+boxplot(data_test$pred_adj ~ data_test$rating)
+#calculate RMSE
+rmse_adj <- sqrt(mean((data_test$rating - data_test$pred_adj)^2))
+cat("The RMSE of the adjusted model is", rmse_adj)
+```
+
+
+```{r}
+dim(result$q)
+```
+
+#### P2 - Postprocessing SVD with KNN
+```{r}
+norm_vec <- function(x) {return(sqrt(sum(x^2)))}
+## calculate similarity matrix 
+q <- result$q
+name <- colnames(q)
+norm_q <- apply(q,2,norm_vec)
+sim_q <- t(q) %*% q
+sim_q_reg <- sim_q / norm_q
+sim_q_reg <- t(t(sim_q_reg) / norm_q)
+colnames(sim_q_reg) <- name
+rownames(sim_q_reg) <- name
+## knn regession
+find_one_n_nei_mov_id<- function(vec) {
+  loc = which.max(vec)
+  return(names(vec)[loc])
+}
+n1 <- nrow(data_test)
+pred_test <- rep(0,n1)
+for (i in 1:n1){
+  user_id <- data_test$userId[i]
+  movie_id <- data_test$movieId[i]
+  train <- data_train[data_train$userId == user_id,]
+  movie_train <- train$movieId
+  movie_train <- movie_train[movie_train %in% name]
+  if (movie_id %in% name) {
+  sim_vec <- sim_q_reg[rownames(sim_q_reg) == movie_id, colnames(sim_q_reg) %in% movie_train]
+  movie <- find_one_n_nei_mov_id(sim_vec)
+  pred_test[i] <- train[train$movieId == movie,][3]
+  } else {pred_test[i] = NA}
+}
+pred_test <- as.numeric(pred_test)
+```
+
+#### P3
+```{r}
+# paper link https://www.cs.uic.edu/~liub/KDD-cup-2007/proceedings/Regular-Paterek.pdf
+# 
+r <- t(result$q) %*% result$p
+library("pracma")
+norm_vec <- function(x) {return(x/Norm(x))}
+norm_q <- apply(r,2,norm_vec)
+
+guassian.kernel <- function(v1, v2=v1){
+  exp(2*(as.matrix(v1) %*% t(v2) - 1))
+}
+# myridge.fit <- function(X,y,lambda) { w= solve((t(X) %% X) +(lambdadiag(dim(X)[2])), (t(X) %*% y)) return(w) }
+###################################
+#define a function to extract the corresponding predictedrating for the test set.
+pred_rating <- t(result$q) %*% result$p # compute all the results 
+extract_pred_rating <- function(test_set, pred){
+  pred_rating <- pred[as.character(test_set[2]), as.character(test_set[1])]
+  return(pred_rating)
+}
+#extract predicted rating
+pred_test_rating <- apply(data_test, 1, extract_pred_rating, pred_rating)
+pred_train_rating <- apply(data_train, 1, extract_pred_rating, pred_rating)
+###################################
+
+# there is function: https://www.rdocumentation.org/packages/listdtr/versions/1.0/topics/krr
+KernelRidgeReg <- function(X.train,Y.train,Y.test,lambda){
+  X <- X.train
+  y <- Y.train                      
+  kernel <- guassian.kernel(X)
+  design.mat <- cbind(1, kernel)
+  I <- rbind(0, cbind(0, kernel))
+  M <- crossprod(design.mat) + lambda*I
+  # M <-design.mat + lambda*I
+  M.inv <- solve(M)
+  #inverse of M
+  k <- as.matrix(diag(guassian.kernel(cbind(X.train,Y.train))))
+  #Removing diag still gives the same MSE, but will output a vector of prediction.
+  Labels <- rbind(0,as.matrix(Y.train))
+  y.hat <- t(Labels) %*% M.inv %*% rbind(0,k)
+  y.true <- Y.test
+  MSE <-mean((y.hat - y.true)^2) 
+  return(list(MSE=MSE,y.hat=y.hat))
+}
+
+results <- KernelRidgeReg(norm_q, pred_train_rating, pred_test_rating, .1)
+```
+
+```{r}
+myridge.fit <- function(X,y,lambda) { w = solve((t(X) %% X) +(lambdadiag(dim(X)[2])), (t(X) %*% y)) return(w) }
+```
+
+
+```{r}
+X <- norm_q #change the X 
+y <- pred_train_rating                    
+kernel <- guassian.kernel(X)
+design.mat <- cbind(1, kernel)
+I <- rbind(0, cbind(0, kernel))
+M <- crossprod(design.mat) + lambda*I
+# M <-design.mat + lambda*I
+M.inv <- solve(M)
+#inverse of M
+k <- as.matrix(diag(guassian.kernel(cbind(X.train,Y.train))))
+#Removing diag still gives the same MSE, but will output a vector of prediction.
+Labels <- rbind(0,as.matrix(Y.train))
+y.hat <- t(Labels) %*% M.inv %*% rbind(0,k)
+y.true <- Y.test
+MSE <-mean((y.hat - y.true)^2) 
+```
+
+```{r}
+rbind(0, cbind(0, kernel[1:5, 1:5]))
+```
+
+```{r}
+cbind(1, kernel[1:5, 1:5])
+```
+
+```{r}
+# Lingyi's update code Nov 17
+pred_rating <- t(result$q) %*% result$p
+#define a function to extract the corresponding predictedrating for the test set.
+extract_pred_rating <- function(test_set, pred){
+  pred_rating <- pred[as.character(test_set[2]), as.character(test_set[1])]
+  return(pred_rating)
+}
+#extract predicted rating
+pred_test_rating <- apply(data_test, 1, extract_pred_rating, pred_rating)
+
+
+
+```
+
+```{r}
+pred_test_rating
+```
+
+```{r}
+library("listdtr")
+x <- norm_q
+y <- pred_train_rating
+obj <- krr(x, y)
+
+xnew <- matrix(rnorm(1000 * 10), 1000, 10)
+ynew <- pred_test_rating
+ytrue <- xnew[, 1] + xnew[, 2] ^ 2 + xnew[, 3] * xnew[, 4]
+mean((ynew - ytrue) ^ 2)
+```
+
+
+```{r}
+
+```
+
+```{r}
+# Constants
+a = 50
+b = 50
+c = 80
+N = 1052
+
+#Limits
+x_upper <- 100
+x_lower <-.01
+spacing = (x_upper-x_lower)/(N-1)
+x <- seq(x_lower,x_upper,by= spacing)
+
+# Targets #Normal missing
+t = 0.5*(sin(x-a)/(x-a)) + 0.8*(sin(x-b)/(x-b)) + .3*(sin(x-c)/(x-c)) + rnorm(x,0,0.05)
+
+# Function plot
+data <- data.frame(x,t)
+plot(x,t,type="l")
+
+#Get colors
+colors = colorRampPalette(c("red", "green"))(6)
+polynomials = seq(1,21,4)
+
+#Plot with polynomials        ## Maybe put some legends
+for(i in 1:length(polynomials)){
+  points(x, predict( lm(t ~ poly(x, degree = polynomials[i]), data) ),  col=colors[i], lwd=.5)
+}
+legend('topright' , paste0("Polynomial ",polynomials, "    "), col=colors,lty=c(1,1), lwd=5 ,bty='n', cex=1) 
+#Parameters for Kernel
+sigma <-  c(.01, 1,10,100)
+lambda <-  c(1, .1, .01 ,.001)
+
+#Colors for plotting
+colors_blues = colorRampPalette(c("lightblue", "darkblue"))(4)
+
+# Prepare the Gaussian RBF kernell & the ridge regression
+N <- length(x)
+kk <- tcrossprod(x)
+dd <- diag(kk)
+
+ident.N <- diag(rep(1,N))
+
+
+par(mfrow=c(2,2))
+for (i in 1:length(sigma)) {
+  plot(x,t,
+       type="l",
+       main = paste0("Gaussian Kernel with sigma = ",sigma[i]),
+       xlab = "x",
+       ylab = "Target (t)")
+
+  ## Gaussian RBF kernel manually  
+  myRBF.kernel <- exp(sigma[i]*(-matrix(dd,N,N)-t(matrix(dd,N,N))+2*kk))
+  
+  for(j in 1:length(lambda)){
+    alphas <- solve(myRBF.kernel + lambda[j]*ident.N)
+    alphas <- alphas %*% t
+    lines(x,myRBF.kernel %*% alphas,col=colors_blues[j], lwd = 2)
+  }
+  legend('topright' , paste0("lambda =  ",lambda, "    "), col=colors_blues,lty=c(1,1), lwd=5 ,bty='n', cex=.5)
+}
+```
+
+
+#### P3 - Postprocessing SVD with kernel ridge regression
+```{r}
+
+
+
+
+## Postprocessing SVD with kernel ridge regression
+
+
+
+
+```
+
+
+### Step 4 Evaluation
+You should visualize training and testing RMSE by different dimension of factors and epochs ([One Epoch is when an ENTIRE dataset is passed forward and backward through the neural network only ONCE](https://towardsdatascience.com/epoch-vs-iterations-vs-batch-size-4dfb9c7ce9c9)). 
+
+```{r}
+library(ggplot2)
+RMSE <- data.frame(epochs = seq(10, 100, 10), Training_MSE = result$train_RMSE, Test_MSE = result$test_RMSE) %>% gather(key = train_or_test, value = RMSE, -epochs)
+RMSE %>% ggplot(aes(x = epochs, y = RMSE,col = train_or_test)) + geom_point() + scale_x_discrete(limits = seq(10, 100, 10)) + xlim(c(0, 100))
+```
+
+
+
+
