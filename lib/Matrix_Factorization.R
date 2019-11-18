@@ -406,7 +406,8 @@ als.t <- function(f = 10,  lambda = 0.3,max.iter = 10,data, train, test){
       bus <- bu[as.character(Ij$userId)]
       alphauDevs <- alphau[as.character(Ij$userId)] * Ij$Dev
       # alphapDevs <- alphap[,as.character(Ij$userId)] %*% Ij$Dev 
-      alphapDevs <- colSums(alphap[,as.character(Ij$userId)] %*% diag(Ij$Dev,nrow = nrow(Ij)))
+      alphapDevs <-  diag(t(MI) %*% alphap[,as.character(Ij$userId)] %*% diag(Ij$Dev,nrow = nrow(Ij)))
+      # alphapDevs <- colSums(alphap[,as.character(Ij$userId)] %*% diag(Ij$Dev,nrow = nrow(Ij)))
       
       # V <- MI %*% RVec - MI %*% bis - MI %*% bibins - MI %*% bus - MI %*% alphauDevs - MI %*% t(MI) %*% alphapDevs 
       # V <- MI %*% (RVec - bis - bibins -  bus -  alphauDevs -t(MI) %*% alphapDevs)

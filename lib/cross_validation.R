@@ -36,15 +36,15 @@ cv.function <- function(dat_train, K, f, lambda){
 
 #######################Wenyue Edit##############################
 cv.als.t.function <- function(dat_train, K, f, lambda, max.iter = 10){
-  n <- dim(dat_train)[1]
-  n.fold <- round(n/K, 0)
-  
-  s <- sample(rep(1:K, c(rep(n.fold, K-1), n-(K-1)*n.fold)))  
+
   RMSEList <- list()
   
   for (i in 1:K){
-    train.data <- dat_train[s != i,]
-    test.data <- dat_train[s == i,]
+    dataSplit <- train_test_split(dat_train,1-1/K) #this function ensures that all users and movies are in the training set. 
+    
+    
+    train.data <- dataSplit$train
+    test.data <-  dataSplit$test
     
     result <- als.t(f = f, lambda =lambda, max.iter = max.iter,data = dat_train, train = train.data, test = test.data)
     
