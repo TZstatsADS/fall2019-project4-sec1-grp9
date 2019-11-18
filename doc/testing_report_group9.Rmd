@@ -1,0 +1,140 @@
+---
+title: "Project4"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+In this project, you are going to explore matrix factorization methods for recommender system. The goal is to match consumers with most appropriate products. Matrix factorization methods characterize both items and users by vectors of factors inferred from item rating patterns. High correspondence between item and user factors leads to a recommendation. Matrix factorization generally has 3 parts:
+
+- factorization algorithm
+
+- regularization
+
+- postpocessing
+
+It is highly recommended to read this [review paper](./paper/P1 Recommender-Systems.pdf).
+
+### Step 1 Load Data and Train-test Split
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(foreach)
+library(doParallel)
+library(zoo)
+library(Matrix)
+library(lubridate)
+
+source("../lib/Matrix_Factorization.R")
+source("../lib/cross_validation.R")
+
+data <- read.csv("../data/ml-latest-small/ratings.csv")
+
+set.seed(0)
+
+dataSplit <- train_test_split(data,0.8) #this function ensures that all users and movies are in the training set. 
+data_train <- dataSplit$train
+data_test <- dataSplit$test
+```
+
+###Step 2 Matrix Factorization
+#### Step 2.1 Algorithm and Regularization
+Here I perform stochastic gradien descent to do matrix factorization.
+
+- For algorithms, the referenced paper are:
+
+A1. [Stochastic Gradient Descent](./paper/P1 Recommender-Systems.pdf) Section: Learning Algorithms-Stochastic Gradient Descent
+
+A2. [Gradient Descent with Probabilistic Assumptions](./paper/P3 probabilistic-matrix-factorization.pdf) Section 2
+
+A3. [Alternating Least Squares](./paper/P4 Large-scale Parallel Collaborative Filtering for the Netflix Prize.pdf) Section 3.1
+
+- For regularizations, the referenced paper are:
+
+R1. [Penalty of Magnitudes](./paper/P1 Recommender-Systems.pdf) Section: a Basic Matrix Factorization Model
+
+R2. [Bias and Intercepts](./paper/P1 Recommender-Systems.pdf) Section: Adding Biases
+
+R3. [Temporal Dynamics](./paper/P5 Collaborative Filtering with Temporal Dynamics.pdf) Section 4 linear model
+
+
+```{r}
+registerDoParallel(cores = detectCores())# use parallelization for faster procesing
+
+out <- als.t(f = 10,  lambda = 0.1,max.iter = 1,data = data, train = data_train, test = data_test)
+```
+
+
+#### Step 2.2 Parameter Tuning
+Here you should tune parameters, such as the dimension of factor and the penalty parameter $\lambda$ by cross-validation.
+```{r}
+source("../lib/cross_validation.R")
+f_list <- seq(10, 20, 10)
+l_list <- seq(-2, -1, 1)
+f_l <- expand.grid(f_list, l_list)
+```
+
+```{r, eval=FALSE}
+result_summary <- array(NA, dim = c(nrow(f_l), 10, 4)) 
+run_time <- system.time(for(i in 1:nrow(f_l)){
+    par <- paste("f = ", f_l[i,1], ", lambda = ", 10^f_l[i,2])
+    cat(par, "\n")
+    current_result <- cv.function(data, K = 5, f = f_l[i,1], lambda = 10^f_l[i,2])
+    result_summary[,,i] <- matrix(unlist(current_result), ncol = 10, byrow = T) 
+    print(result_summary)
+  
+})
+
+save(result_summary, file = "../output/rmse.Rdata")
+```
+
+```{r}
+load("../output/rmse.Rdata")
+rmse <- data.frame(rbind(t(result_summary[1,,]), t(result_summary[2,,])), train_test = rep(c("Train", "Test"), each = 4), par = rep(paste("f = ", f_l[,1], ", lambda = ", 10^f_l[,2]), times = 2)) %>% gather("epoch", "RMSE", -train_test, -par)
+rmse$epoch <- as.numeric(gsub("X", "", rmse$epoch))
+rmse %>% ggplot(aes(x = epoch, y = RMSE, col = train_test)) + geom_point() + facet_grid(~par)
+```
+
+### Step 3 Postprocessing
+After matrix factorization, postporcessing will be performed to improve accuracy.
+The referenced papers are:
+
+P1:[Global bias correction](./paper/P4 Large-scale Parallel Collaborative Filtering for the Netflix Prize.pdf) Section 4.1
+
+P2:[Postprocessing SVD with KNN](./paper/P2 Improving regularized singular value decomposition for collaborative filtering .pdf) Section 3.5
+
+P3:[Postprocessing SVD with kernel ridge regression](./paper/P2 Improving regularized singular value decomposition for collaborative filtering .pdf) Section 3.6
+
+P4:[Linearly combination of predictors](./paper/P4 Large-scale Parallel Collaborative Filtering for the Netflix Prize.pdf) Section 4.1
+
+#### P2 - Postprocessing SVD with KNN
+```{r}
+source(file = "../lib/p2_svd_knn.R")
+## calculate similarity matrix 
+q <- out$q
+pred_train <- pred_rating_svd_knn(data_train = data_train, data_test = data_train, q)
+pred_test <- pred_rating_svd_knn(data_train = data_train, data_test = data_test, q)
+train_rmse_p2 <- RMSE2(data_train['rating'], pred_train)
+test_rmse_p2 <- RMSE2(data_test['rating'], pred_test)
+print(train_rmse_p2)
+print(test_rmse_p2)
+```
+
+#### P3 - Postprocessing SVD with kernel ridge regression 
+```{r}
+
+```
+
+### Step 4 Evaluation
+You should visualize training and testing RMSE by different dimension of factors and epochs ([One Epoch is when an ENTIRE dataset is passed forward and backward through the neural network only ONCE](https://towardsdatascience.com/epoch-vs-iterations-vs-batch-size-4dfb9c7ce9c9)). 
+
+```{r}
+library(ggplot2)
+
+RMSE <- data.frame(epochs = seq(10, 100, 10), Training_MSE = result$train_RMSE, Test_MSE = result$test_RMSE) %>% gather(key = train_or_test, value = RMSE, -epochs)
+
+RMSE %>% ggplot(aes(x = epochs, y = RMSE,col = train_or_test)) + geom_point() + scale_x_discrete(limits = seq(10, 100, 10)) + xlim(c(0, 100))
+
+```
