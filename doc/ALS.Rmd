@@ -1,0 +1,83 @@
+---
+title: "ALS"
+author: "Wenyue Wu"
+date: "11/19/2019"
+output: html_document
+---
+
+### Load Data and Train-test Split
+
+```{r,message=FALSE}
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(foreach)
+library(doParallel)
+library(zoo)
+library(Matrix)
+library(lubridate)
+
+source("../lib/Matrix_Factorization.R")
+source("../lib/cross_validation.R")
+
+set.seed(123)
+
+data <- read.csv("../data/ml-latest-small/ratings.csv")
+dataSplit <- train_test_split(data,0.8) #this function ensures that all users and movies are in the training set.
+data_train <- dataSplit$train
+data_test <- dataSplit$test
+
+```
+
+### Parameter Tuning
+
+Conducting a full Cross-Validation was very time consuming. Given our time constraints, we tested 6 set of parameters only once. Uncomment the commented section of the code if the user wishes to run the testing process.
+
+```{r, message=FALSE}
+
+f_list <- c(10,20)
+l_list <- c(0.01,0.05,0.1)
+f_l <- expand.grid(f_list, l_list)
+
+# resultList <- list()
+# run_time <- system.time(for(i in 1:nrow(f_l)){
+#   par <- paste("f = ", f_l[i,1], ", lambda = ", f_l[i,2])
+#   cat(par, "\n")
+#   
+#   current_result  <- als.t(f = f_l[i,1],  lambda = f_l[i,2],max.iter = 10,data = data, train = data_train, test = data_test)
+#   resultList[[paste0('f = ',f_l[i,1],' , lambda = ',f_l[i,2])]] <- current_result
+#   
+#   
+# })
+# 
+# save(resultList, file = "../output/CVResult.RData")
+
+load('../output/CVResult.RData')
+resultNms <- as.list(names(resultList))
+rmse <- do.call(rbind,lapply(resultNms, FUN = function(nm){
+  x <- resultList[[nm]]$RMSE
+  rbind(data.frame(train_test = 'Train',par = nm,Iteration = x$Iteration,RMSE = x$Train.Q.Update,check.names = F),
+        data.frame(train_test = 'Test',par = nm,Iteration = x$Iteration,RMSE = x$Test.Q.Update,check.names = F)
+  )
+}))
+
+rmse %>% ggplot(aes(x = Iteration, y = RMSE, col = train_test)) + geom_point() + 
+  facet_grid(~par,labeller = label_wrap_gen(width = 16,multi_line = TRUE)) + scale_x_continuous(breaks = c(0,5,10),labels = c('0','5','10'))
+
+
+```
+  
+We can see that the parameter set f = 10, lambda = 0.1 gives use the best outcome. Furthermore, running 3-4 iterations is enough to get the best result.
+
+### Fitting the model with the optimized parameters
+
+```{r}
+# registerDoParallel(cores = detectCores())# use parallelization for faster procesing
+# result <- als.t(f = 10,  lambda = 0.1,max.iter = 3,data = data, train = data_train, test = data_test)
+# 
+# save(result,file = "../output/ALSResult.RData")
+load('../output/ALSResult.RData')
+result$RMSE
+
+```
