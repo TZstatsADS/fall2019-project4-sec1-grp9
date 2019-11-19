@@ -28,6 +28,6 @@ pred_rating_svd_knn <- function(data_train, data_test, q)
     pred_test[i] <- train[train$movieId == movie,][3]
   }
   pred_test <- as.numeric(unlist(pred_test))
-  rmse_adj <- RMSE2(data_test, pred_test)
-  return(list(pred_adj = pred_adj, rmse_adj = rmse_adj))
+  rmse_test<- RMSE2(data_test, pred_test)
+  return(list(pred_test = pred_test, rmse_test = rmse_test))
 }
