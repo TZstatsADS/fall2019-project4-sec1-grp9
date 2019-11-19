@@ -11,7 +11,8 @@ Term: Fall 2019
 	+ Chen, Xiwen xc2463@columbia.edu
 	+ Dai, Tong td2602@columbia.edu
 	+ Wu, Wenyue ww2501@columbia.edu
-+ Project summary: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+	
++ Project summary: In this project, we explored different matrix factorization methods for recommender system and compared a pair of algorithms of post processing. The goal of matrix factorization is to match consumers with most appropriate products. We use alternating least squares to minimize object function 3 in paper 4. First, we initialize matrix q by assigning the average rating for that movie as the first row, and small random numbers for the remaining entries. Next we fix p, solve q by minimizeing the objective function. Then we fix p, solve q by minimizing the objective funciton similarly. After that, we use temporal dynamics as regularization terms.
 	
 **Contribution statement**: [default] All team members contributed equally in all stages of this project. All team members approve our work presented in this GitHub repository including this contributions statement. 
 
