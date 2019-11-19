@@ -1,5 +1,5 @@
 ---
-title: "Project4"
+title: "Project4_Group9"
 output: html_notebook
 ---
 
@@ -94,7 +94,7 @@ rmse %>% ggplot(aes(x = Iteration, y = RMSE, col = train_test)) + geom_point() +
 
 ```
   
-We can see that the parameter set f = 10, lambda = 0.1 gives use the best outcome. Furthermore, running 3-4 iterations is enough to get the best result.
+We can see that the parameter set f = 10, lambda = 0.1 gives us the best outcome. Furthermore, running 3-4 iterations is enough to get the best result.
 
 ### Fitting the model with the optimized parameters
 
@@ -116,6 +116,7 @@ P2:[Postprocessing SVD with KNN](./paper/P2 Improving regularized singular value
 P3:[Postprocessing SVD with kernel ridge regression](./paper/P2 Improving regularized singular value decomposition for collaborative filtering .pdf) Section 3.6
 
 We write a function pred_rating_svd_knn to perform Postprocessing SVD with KNN, which is in the p2_scd_knn.R file in the lib folder. 
+
 #### P2 - Postprocessing SVD with KNN
 ```{r}
 source(file = "../lib/p2_svd_knn.R")
