@@ -124,7 +124,22 @@ print(test_rmse_p2)
 
 #### P3 - Postprocessing SVD with kernel ridge regression 
 ```{r}
-
+library("listdtr")
+movieID <- colnames(result$q)
+MSE <- list()
+for(i in 1:610){
+  userID = as.character(i)
+  print(userID)
+  movie_train_index <- which(movieID %in% data_train$movieId[which(data_train$userId == userID)])
+  movie_test_index <- which(movieID %in% data_test$movieId[which(data_test$userId == userID)])
+  obj <- krr(t(norm_q[, movie_train_index]), data_train$rating[movie_train_index])
+  xnew <- norm_q[, movie_test_index]
+  ynew <- predict(obj, t(xnew))
+  ytrue <- data_test$rating[which(data_test$userId == userID)]
+  MSE_ <- mean((ynew - ytrue)^ 2)
+  MSE <- append(MSE, MSE_)
+}
+MSE <- mean(unlist(MSE))
 ```
 
 ### Step 4 Evaluation
