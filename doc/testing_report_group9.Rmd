@@ -124,6 +124,10 @@ print(test_rmse_p2)
 
 #### P3 - Postprocessing SVD with kernel ridge regression 
 ```{r}
+library("pracma")
+norm_vec <- function(x) {return(x/Norm(x))}
+norm_q <- apply(result$q, 2, norm_vec)
+
 library("listdtr")
 movieID <- colnames(result$q)
 MSE <- list()
