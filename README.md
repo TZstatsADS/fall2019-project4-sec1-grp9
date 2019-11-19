@@ -16,8 +16,7 @@ Term: Fall 2019
 	
 **Contribution statement**: [default] All team members contributed equally in all stages of this project. All team members approve our work presented in this GitHub repository including this contributions statement. 
 
-+ Cai, Lingyi lc3352@columbia.edu
-+ Chen, Xiwen xc2463@columbia.edu
++ LC and XC worked together. They take charge of comparison of postprocessing SVD with KNN and Postprocessing SVD with kernel ridge regression, debugging the implement of matrix factorization methods and writing the report and github.
 
 
 
