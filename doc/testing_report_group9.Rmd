@@ -1,17 +1,21 @@
 ---
 title: "Project4_Group9"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 
 In this project, we are going to explore matrix factorization methods for recommender system. The goal is to match consumers with most appropriate products. Matrix factorization methods characterize both items and users by vectors of factors inferred from item rating patterns. High correspondence between item and user factors leads to a recommendation. Matrix factorization generally has 3 parts:
 
-- factorization algorithm
+- Factorization algorithm
 
-- regularization
+- Regularization
 
-- postpocessing
+- Postpocessing
 
-We are going to compare P2 vs P3 given A3 + R3.
+We are going to compare P2 vs P3 given A3 + R3.  
+
+***
 
 ### Step 1 Load Data and Train-test Split
 ```{r,message=FALSE}
@@ -37,10 +41,13 @@ data_test <- dataSplit$test
 
 ```
 
+***
+### Step 2 Matrix Factorization
 
-###Step 2 Matrix Factorization
+<br/>
+
 #### Step 2.1 Algorithm and Regularization
-Here we perform alternating least squares to do matrix factorization and use temporal dynamics as our regularization term.
+Here we perform **Alternating Least Squares** to do matrix factorization and use **Temporal Dynamics** as our regularization term.
 
 - For algorithms, the referenced paper are:
 
@@ -48,13 +55,26 @@ A3. [Alternating Least Squares](./paper/P4 Large-scale Parallel Collaborative Fi
 
 R3. [Temporal Dynamics](./paper/P5 Collaborative Filtering with Temporal Dynamics.pdf) Section 4 linear model
 
-First, we initialize matrix q by assigning the average rating for that movie as the first row, and small random numbers for the remaining entries. Next we fixe p, solve q by minimizeing the objective function. Then we fixe p, solve q by minimizing the objective funciton similarly. After that, we use temporal dynamics as regularization terms. We use alternative least squares to update one parameter and fix the other parameter. 
+<br/>
+**Model Setup:**
+Let 
+$$\hat{r_{ui}} = \mu + b_{i}(t) + b_{u}(t) + q^{T}p_{u}(t)$$
+where
+$$b_{i}(t) = b_{i} + b_{i,Bin(t)}$$
+$$b_{u}(t) = b_{u} + \alpha_{u}dev_{u}(t)$$
+$$p_{u}(t) = p_{u} + \alpha_{p}dev_{u}(t)$$
+$$dev_{u}(t) = sign(t - t_{u}) |t - t_{u}|^{\beta}$$
+and $\mu$ is the average of all ratings, $t_{u}$ is the average rating time of user u, $\beta$ is 0.4 from P5.
 
-We write a function als.t to do matrix factorization. The function is in Matrix_Factorization.R file in the lib folder.
-```{r}
-source("../lib/Matrix_Factorization.R")
-```
+The objective function is then: 
 
+$$Minimze \quad \sum_{n=1}^{10} (r_{ui} - \mu - b_{i}- b_{i,Bin(t)} - b_{u} - \alpha_{u}dev_{u}(t) -
+q^{T}(p_{u} + \alpha_{p}dev_{u}(t))) + \lambda(||q_{i}^2|| + ||p_{u}^2|| + b_{i}^2 + b_{i,Bin(t)}^2 + b_{u}^2 + \alpha_{u}^2 + \alpha_{p}^2)$$ 
+
+The funciton to apply Alternating Least Square with Temporal Dynamics is als.t(), which can be found in the Matrix_Factorization.r file in the lib folder. For each iteration, the function optimzies parameters $b_i,b_{i,Bin(t)},b_u,\alpha_{u},p,\alpha_p,q$, in that order, to minimize the objective function. 
+Please refer to the comments in that function for implementation details.
+
+<br/>
 
 #### Step 2.2 Parameter Tuning
 
@@ -94,7 +114,7 @@ rmse %>% ggplot(aes(x = Iteration, y = RMSE, col = train_test)) + geom_point() +
 
 ```
   
-We can see that the parameter set f = 10, lambda = 0.1 gives us the best outcome. Furthermore, running 3-4 iterations is enough to get the best result.
+We can see that the parameter set f = 10, lambda = 0.1 gives us the best outcome (this parameter set also happens to be the one choosen in the starter code). Furthermore, running 3-4 iterations is enough to get the best result.
 
 ### Fitting the model with the optimized parameters
 
@@ -107,9 +127,10 @@ load('../output/ALSResult.RData')
 result$RMSE
 ```
 
+***
 
 ### Step 3 Postprocessing
-After matrix factorization, postporcessing will be performed to improve accuracy. We use Postprocessing SVD with KNN (P2) and Postprocessing SVD with kernel (P3) to do postprocessing.
+After matrix factorization, postporcessing will be performed to improve accuracy. We use **Postprocessing SVD with KNN (P2)** and **Postprocessing SVD with kernel (P3)** to do postprocessing.
 
 P2:[Postprocessing SVD with KNN](./paper/P2 Improving regularized singular value decomposition for collaborative filtering .pdf) Section 3.5
 
@@ -118,42 +139,52 @@ P3:[Postprocessing SVD with kernel ridge regression](./paper/P2 Improving regula
 We write a function pred_rating_svd_knn to perform Postprocessing SVD with KNN, which is in the p2_scd_knn.R file in the lib folder. 
 
 #### P2 - Postprocessing SVD with KNN
+*Uncomment the code to run*
 ```{r}
 source(file = "../lib/p2_svd_knn.R")
 ## calculate similarity matrix 
-q <- result$q
-p2_result_test <- pred_rating_svd_knn(data_train = data_train, data_test = data_test, q)
-pred_test_adj <- p2_result_test['pred_test']
-test_rmse_p2 <- p2_result_test['rmse_test']
+# q <- result$q
+# p2_result_test <- pred_rating_svd_knn(data_train = data_train, data_test = data_test, q)
+# pred_test_adj <- p2_result_test['pred_test']
+# test_rmse_p2 <- p2_result_test['rmse_test']
+# print(test_rmse_p2)
+# save(test_rmse_p2, file = "../output/test_rmse_p2.Rdata")
+
+load("../output/test_rmse_p2.Rdata")
 print(test_rmse_p2)
-save(test_rmse_p2, file = "../output/test_rmse_p2.Rdata")
 ```
 
 #### P3 - Postprocessing SVD with kernel ridge regression 
+*Uncomment the code to run*
 ```{r}
-library("pracma")
-norm_vec <- function(x) {return(x/Norm(x))}
-norm_q <- apply(result$q, 2, norm_vec)
-library("listdtr")
-movieID <- colnames(result$q)
-MSE <- list()
-for(i in 1:610){
-  userID = as.character(i)
-  print(userID)
-  movie_train_index <- which(movieID %in% data_train$movieId[which(data_train$userId == userID)])
-  movie_test_index <- which(movieID %in% data_test$movieId[which(data_test$userId == userID)])
-  obj <- krr(t(norm_q[, movie_train_index]), data_train$rating[movie_train_index])
-  xnew <- norm_q[, movie_test_index]
-  ynew <- predict(obj, t(xnew))
-  ytrue <- data_test$rating[which(data_test$userId == userID)]
-  MSE_ <- mean((ynew - ytrue)^ 2)
-  MSE <- append(MSE, MSE_)
-}
-MSE <- mean(unlist(MSE))
-test_rmse_p3 <- mean(MSE)
+# library("pracma")
+# norm_vec <- function(x) {return(x/Norm(x))}
+# norm_q <- apply(result$q, 2, norm_vec)
+# library("listdtr")
+# movieID <- colnames(result$q)
+# MSE <- list()
+# for(i in 1:610){
+#   userID = as.character(i)
+#   print(userID)
+#   movie_train_index <- which(movieID %in% data_train$movieId[which(data_train$userId == userID)])
+#   movie_test_index <- which(movieID %in% data_test$movieId[which(data_test$userId == userID)])
+#   obj <- krr(t(norm_q[, movie_train_index]), data_train$rating[movie_train_index])
+#   xnew <- norm_q[, movie_test_index]
+#   ynew <- predict(obj, t(xnew))
+#   ytrue <- data_test$rating[which(data_test$userId == userID)]
+#   MSE_ <- mean((ynew - ytrue)^ 2)
+#   MSE <- append(MSE, MSE_)
+# }
+# MSE <- mean(unlist(MSE))
+# test_rmse_p3 <- mean(MSE)
+# print(test_rmse_p3)
+# save(test_rmse_p3, file = "../output/test_rmse_p3.Rdata")
+
+load("../output/test_rmse_p3.Rdata")
 print(test_rmse_p3)
-save(test_rmse_p3, file = "../output/test_rmse_p3.Rdata")
 ```
+
+***
 
 ### Step 4 Evaluation
 Finally, we compare the rmse of P2 and P3 given A3 + R3. The result is shown in the table below.

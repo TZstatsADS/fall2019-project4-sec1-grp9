@@ -135,88 +135,6 @@ train_test_split <- function(data,train_ratio = 0.8){
   
 }
 
-
-als <- function(f = 10,  lambda = 0.3,max.iter = 10,data, train, test){
-  U <- length(unique(data$userId))
-  I <- length(unique(data$movieId))
-  
-  #p = user matrix; q = movie matrix
-  #assign random small value to matrix p and q
-  p <- matrix(runif(f*U, -1, 1), ncol = U) 
-  colnames(p) <- as.character(1:U)
-  q <- matrix(runif(f*I, -1, 1), ncol = I)
-  colnames(q) <- levels(as.factor(data$movieId))
-  #assign first row of q to be the average rating for that movie, as per P4
-  meanMovieRating <- train %>% group_by(movieId) %>% summarise(Rating = mean(rating)) %>% arrange(movieId)
-  q[1,as.character(meanMovieRating$movieId)] <- meanMovieRating$Rating
-  
-  #before 
-  est_rating <- t(q) %*% p
-  rownames(est_rating) <- levels(as.factor(data$movieId))
-  # print(paste0("RMSE at start = ", round(RMSE(train, est_rating),4)))
-  # 
-  RMSEOut <- data.frame(matrix(NA,max.iter+1,5))
-  colnames(RMSEOut) <- c("Iteration",'Train.P.Update','Train.Q.Update','Test.P.Update','Test.Q.Update')
-  RMSEOut$Iteration <- c(0:max.iter)
-  RMSEOut$Train.Q.Update[1] <- RMSE(train, est_rating)
-  RMSEOut$Test.Q.Update[1] <- RMSE(test, est_rating)
-  cat("RMSE at start, training:", RMSEOut$Train.Q.Update[1], "\t testing:",RMSEOut$Test.Q.Update[1], "\n")
-  
-  
-  for (l in 1:max.iter){
-    cat("Iteration =",l,':\n')
-    #fix q and update p
-    result <- foreach (pi = 1:ncol(p),.combine = cbind,.packages = c('dplyr','tidyr')) %dopar% {
-      i <- colnames(p)[pi] #the user we're updating
-      Ii <- as.character(train %>% filter(userId == i) %>% arrange(movieId) %>% pull(movieId)) #list of movies that this user has rated  
-      MIi <- q[,Ii,drop = F]
-      RVec <- train %>% filter(userId == i) %>% arrange(movieId) %>% pull(rating) #all ratings by this user
-      
-      # Ai <- MIi %*% t(MIi) + lambda * length(Ii) * diag(f)
-      Ai <- MIi %*% t(MIi)
-      Vi <- MIi %*% RVec
-      solve(Ai,tol = 1e-30) %*% Vi
-
-    }
-    colnames(result) <- colnames(p)
-    p <- result
-    
-    est_rating <- t(q) %*% p
-    rownames(est_rating) <- levels(as.factor(data$movieId))
-    RMSEOut$Train.P.Update[l+1] <- RMSE(train, est_rating)
-    RMSEOut$Test.P.Update[l+1] <- RMSE(test, est_rating)
-    cat("RMSE after p update, training:", RMSEOut$Train.P.Update[l+1],"\t testing:",RMSEOut$Test.P.Update[l+1],'\n')
-
-    
-    #fix p and update q
-    result <- foreach (qi = 1:ncol(q),.combine = cbind,.packages = c('dplyr','tidyr')) %dopar% {
-      j<- colnames(q)[qi]
-      Ij <- train %>% filter(movieId == j) %>% arrange (userId) %>% pull(userId) #list of users that this movie was rated by
-      UIj <- p[,Ij,drop = F]
-      RVec <- train %>% filter(movieId == j) %>% arrange(userId) %>% pull(rating) #all ratings of this movie
-      
-      Aj <- UIj %*% t(UIj) + lambda * length(Ij) * diag(f)
-      # Aj <- UIj %*% t(UIj)
-      Vj <- UIj %*% RVec
-      solve(Aj,tol = 1e-30) %*% Vj
-
-    }
-    colnames(result) <- colnames(q)
-    q <- result
-    
-    est_rating <- t(q) %*% p
-    rownames(est_rating) <- levels(as.factor(data$movieId))
-    RMSEOut$Train.Q.Update[l+1] <- RMSE(train, est_rating)
-    RMSEOut$Test.Q.Update[l+1] <- RMSE(test, est_rating)
-    cat("RMSE after q update, training:", RMSEOut$Train.Q.Update[l+1],"\t testing:",RMSEOut$Test.Q.Update[l+1],'\n')
-  }
-  
-  
-  return(list(p = p, q = q, RMSE = RMSEOut))
-
-}
-
-
 #the model is r_ui(t) = mu + b_i(t) +  b_u(t) + q^T %*% p(t), where
 #b_i(t) = b_i + b_(i,Bin(t))
 #b_u(t) = b_u + alpha_u * dev_u(t)
@@ -405,12 +323,8 @@ als.t <- function(f = 10,  lambda = 0.3,max.iter = 10,data, train, test){
       bibins <- bibin[bibinInds]
       bus <- bu[as.character(Ij$userId)]
       alphauDevs <- alphau[as.character(Ij$userId)] * Ij$Dev
-      # alphapDevs <- alphap[,as.character(Ij$userId)] %*% Ij$Dev 
       alphapDevs <-  diag(t(MI) %*% alphap[,as.character(Ij$userId)] %*% diag(Ij$Dev,nrow = nrow(Ij)))
-      # alphapDevs <- colSums(alphap[,as.character(Ij$userId)] %*% diag(Ij$Dev,nrow = nrow(Ij)))
       
-      # V <- MI %*% RVec - MI %*% bis - MI %*% bibins - MI %*% bus - MI %*% alphauDevs - MI %*% t(MI) %*% alphapDevs 
-      # V <- MI %*% (RVec - bis - bibins -  bus -  alphauDevs -t(MI) %*% alphapDevs)
       V <- MI %*% (RVec - bis - bibins -  bus -  alphauDevs - alphapDevs) 
       A <-  MI %*% t(MI) + lambda * nrow(Ij) * diag(f)
       
