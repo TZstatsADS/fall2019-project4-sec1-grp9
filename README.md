@@ -20,8 +20,7 @@ Term: Fall 2019
 **Contribution statement**: [default] All team members contributed equally in all stages of this project. All team members approve our work presented in this GitHub repository including this contributions statement. 
 
 + LC and XC worked together. They take charge of comparison of postprocessing SVD with KNN and Postprocessing SVD with kernel ridge regression, debugging the implement of matrix factorization methods and writing the report and github.
-
-
++ DT. Prepare presentation slides and presenting key insights that team consolidated.
 
 Following [suggestions](http://nicercode.github.io/blog/2013-04-05-projects/) by [RICH FITZJOHN](http://nicercode.github.io/about/#Team) (@richfitz). This folder is orgarnized as follows.
 
