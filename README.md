@@ -12,13 +12,14 @@ Term: Fall 2019
 	+ Dai, Tong td2602@columbia.edu
 	+ Wu, Wenyue ww2501@columbia.edu
 	
-+ Project summary: In this project, we explored different matrix factorization methods for recommender system and compared a pair of algorithms of post processing. The goal of matrix factorization is to match consumers with most appropriate products. We used alternating least squares to minimize object function 3 in paper 4. First, we initialized matrix q by assigning the average rating for that movie as the first row, and small random numbers for the remaining entries. Next we fixed p, solved q by minimizeing the objective function. Then we fixed p, solved q by minimizing the objective funciton similarly. After that, we used temporal dynamics as regularization terms. We used alternative least squares to update one parameter by fixing the other parameter. Then we used cross validation to finalize our parameters. Finally, we implemented and compared two postprocessing methods, which are Postprocessing SVD with KNN and Postprocessing SVD with kernel ridge regression. For evaluation part, we used root mean squared error (RMSE) for the test data set.
++ Project summary: In this project, we explored different matrix factorization methods for recommender system and compared a pair of algorithms of post processing. The goal of matrix factorization is to match consumers with most appropriate products. We used alternating least squares to minimize RMSE with temporal dynamics regularization, updating each of the parameters one by one in each iteration. The parameters used in the final fit came from cross validation. Lastly, we implemented and compared two postprocessing methods, which are Postprocessing SVD with KNN and Postprocessing SVD with kernel ridge regression. For evaluation part, we used root mean squared error (RMSE) for the test data set.
 + Please see [testing_report_group9.Rmd](https://github.com/TZstatsADS/fall2019-project4-sec1-grp9/blob/master/doc/testing_report_group9.Rmd) in /doc for final report.
 
 
 	
 **Contribution statement**: [default] All team members contributed equally in all stages of this project. All team members approve our work presented in this GitHub repository including this contributions statement. 
 
++ WW worked on Matrix Factorization functions (ALS with Temporal Dynamics) and helped in editing of final reports.
 + LC and XC worked together. They take charge of comparison of postprocessing SVD with KNN and Postprocessing SVD with kernel ridge regression, debugging the implement of matrix factorization methods and writing the report and github.
 + DT. Prepare presentation slides and presenting key insights that team consolidated.
 
