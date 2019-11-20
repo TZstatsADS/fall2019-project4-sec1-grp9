@@ -5,7 +5,7 @@
 Term: Fall 2019
 
 + Team #
-+ Projec title: Lorem ipsum dolor sit amet
++ Projec title: Project 4: Collaborative Filtering
 + Team members
 	+ Cai, Lingyi lc3352@columbia.edu
 	+ Chen, Xiwen xc2463@columbia.edu
